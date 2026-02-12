@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Absensi Pro</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="Absensi Paskibra.css">
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#111;
+  color:#fff;
+  text-align:center;
+}
+
+.container{
+  width:90%;
+  max-width:900px;
+  margin:auto;
+  margin-top:30px;
+}
+
+input, button, select{
+  padding:8px;
+  margin:5px;
+  border:none;
+  border-radius:6px;
+}
+
+button{
+  background:#00bcd4;
+  color:white;
+  cursor:pointer;
+}
+
+.card{
+  background:#1e1e1e;
+  padding:15px;
+  border-radius:10px;
+  margin-top:15px;
+}
+
+table{
+  width:100%;
+  margin-top:10px;
+}
+
+th, td{
+  padding:8px;
+}
+
+.status-btn{
+  padding:5px 8px;
+  border-radius:5px;
+  cursor:pointer;
+  margin:2px;
+}
+
+.hadir{background:#4caf50;}
+.izin{background:#ff9800;}
+.sakit{background:#2196f3;}
+.alpa{background:#f44336;}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginBox">
+<h2>Login Admin</h2>
+<input type="password" id="password" placeholder="Masukkan Password">
+<button onclick="login()">Masuk</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" style="display:none;">
+
+<div id="halamanAbsensi">
+
+<h2>Absensi Hari Ini</h2>
+<p id="tanggal"></p>
+
+<div class="card">
+<table>
+<thead>
+<tr>
+<th>Nama</th>
+<th>Status</th>
+<th>Jam</th>
+</tr>
+</thead>
+<tbody id="absenTable"></tbody>
+</table>
+</div>
+
+<div class="card">
+<h3>Rekap Hari Ini</h3>
+<canvas id="chart"></canvas>
+</div>
+
+<button onclick="resetHari()">Reset Hari Ini</button>
+<button onclick="bukaRiwayat()">Lihat Riwayat</button>
+
+</div>
+
+<!-- HALAMAN RIWAYAT -->
+<div id="halamanRiwayat" style="display:none;">
+<h2>Riwayat Absensi</h2>
+
+<select id="riwayatTanggal" onchange="lihatRiwayat()"></select>
+
+<div class="card" id="riwayatData"></div>
+
+<button onclick="kembali()">Kembali</button>
+</div>
+
+</div>
+</div>
+
+<script>
+
+const anggota = ["Rakha","Bagus","Falah","Arfan","Dicki"];
+let dataAbsensi = JSON.parse(localStorage.getItem("absensi")) || {};
+
+function login(){
+  const pw = document.getElementById("password").value;
+  if(pw === "admin123"){
+    document.getElementById("loginBox").style.display="none";
+    document.getElementById("mainApp").style.display="block";
+    init();
+  } else {
+    alert("Password salah!");
+  }
+}
+
+function init(){
+  const today = new Date().toLocaleDateString("id-ID");
+  document.getElementById("tanggal").innerText = "Tanggal: " + today;
+
+  if(!dataAbsensi[today]){
+    dataAbsensi[today] = {};
+  }
+
+  renderTable(today);
+  renderChart(today);
+  loadRiwayat();
+}
+
+function renderTable(today){
+  const table = document.getElementById("absenTable");
+  table.innerHTML="";
+
+  anggota.forEach(nama=>{
+    const status = dataAbsensi[today][nama]?.status || "-";
+    const jam = dataAbsensi[today][nama]?.jam || "-";
+
+    table.innerHTML += `
+    <tr>
+      <td>${nama}</td>
+      <td>
+        <button class="status-btn hadir" onclick="setStatus('${nama}','Hadir')">Hadir</button>
+        <button class="status-btn izin" onclick="setStatus('${nama}','Izin')">Izin</button>
+        <button class="status-btn sakit" onclick="setStatus('${nama}','Sakit')">Sakit</button>
+        <button class="status-btn alpa" onclick="setStatus('${nama}','Alpa')">Alpa</button>
+        <br><b>${status}</b>
+      </td>
+      <td>${jam}</td>
+    </tr>`;
+  });
+}
+
+function setStatus(nama,status){
+  const today = new Date().toLocaleDateString("id-ID");
+  const jam = new Date().toLocaleTimeString("id-ID");
+
+  dataAbsensi[today][nama] = {
+    status: status,
+    jam: jam
+  };
+
+  localStorage.setItem("absensi", JSON.stringify(dataAbsensi));
+  renderTable(today);
+  renderChart(today);
+}
+
+function renderChart(today){
+  const ctx = document.getElementById("chart");
+  const statuses = Object.values(dataAbsensi[today] || {}).map(x=>x.status);
+
+  const count = {
+    Hadir: statuses.filter(x=>x==="Hadir").length,
+    Izin: statuses.filter(x=>x==="Izin").length,
+    Sakit: statuses.filter(x=>x==="Sakit").length,
+    Alpa: statuses.filter(x=>x==="Alpa").length
+  };
+
+  if(window.myChart) window.myChart.destroy();
+
+  window.myChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ["Hadir","Izin","Sakit","Alpa"],
+      datasets: [{
+        label: "Jumlah",
+        data: [count.Hadir,count.Izin,count.Sakit,count.Alpa]
+      }]
+    }
+  });
+}
+
+function resetHari(){
+  const today = new Date().toLocaleDateString("id-ID");
+  delete dataAbsensi[today];
+  localStorage.setItem("absensi", JSON.stringify(dataAbsensi));
+  init();
+}
+
+function bukaRiwayat(){
+  document.getElementById("halamanAbsensi").style.display="none";
+  document.getElementById("halamanRiwayat").style.display="block";
+}
+
+function kembali(){
+  document.getElementById("halamanRiwayat").style.display="none";
+  document.getElementById("halamanAbsensi").style.display="block";
+}
+
+function loadRiwayat(){
+  const select = document.getElementById("riwayatTanggal");
+  select.innerHTML="";
+
+  Object.keys(dataAbsensi).forEach(tanggal=>{
+    select.innerHTML += `<option value="${tanggal}">${tanggal}</option>`;
+  });
+}
+
+function lihatRiwayat(){
+  const tanggal = document.getElementById("riwayatTanggal").value;
+  const data = dataAbsensi[tanggal];
+
+  if(!data) return;
+
+  let html = "<ul>";
+  for(let nama in data){
+    html += `<li>${nama} - ${data[nama].status} (${data[nama].jam})</li>`;
+  }
+  html += "</ul>";
+
+  document.getElementById("riwayatData").innerHTML = html;
+}
+
+</script>
+
+</body>
+</html>
